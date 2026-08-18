@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Triso.Api/Triso.Api.csproj" />
+  <Project Path="Triso.Application/Triso.Application.csproj" />
+  <Project Path="Triso.Domain/Triso.Domain.csproj" />
+  <Project Path="Triso.Infrastructure/Triso.Infrastructure.csproj" />
+  <Project Path="Triso.Tests/Triso.Tests.csproj" />
+</Solution>
