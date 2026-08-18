@@ -21,6 +21,7 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
             .Where(x => x.DeletedAt == null)
             .Include(x => x.Category).Include(x => x.Images)
             .Include(x => x.MarketplaceLinks).ThenInclude(x => x.Marketplace)
+            .AsSplitQuery()
             .OrderByDescending(x => x.CreatedAt).ToListAsync(ct)).Select(CatalogController.Map)
     });
 
@@ -41,23 +42,56 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
     {
         var errors = ProductValidator.Validate(request);
         if (errors.Count > 0) return ValidationProblem(new ValidationProblemDetails(errors));
-        var product = await db.Products.Include(x => x.Images).Include(x => x.MarketplaceLinks).SingleOrDefaultAsync(x => x.Id == id, ct);
-        if (product is null) return NotFound();
-        product.Name = request.Name.Trim();
-        product.Slug = await UniqueSlug(request.Name, id, ct);
-        product.Description = request.Description.Trim();
-        product.PriceCents = request.PriceCents;
-        product.Badge = Clean(request.Badge, 40);
-        product.Status = request.Status;
-        product.CategoryId = request.CategoryId;
-        product.UpdatedAt = DateTimeOffset.UtcNow;
-        db.ProductImages.RemoveRange(product.Images);
-        db.ProductMarketplaceLinks.RemoveRange(product.MarketplaceLinks);
-        product.Images = [];
-        product.MarketplaceLinks = [];
-        await ApplyChildren(product, request, ct);
-        await db.SaveChangesAsync(ct);
-        return NoContent();
+        var strategy = db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var product = await db.Products.Include(x => x.MarketplaceLinks).SingleOrDefaultAsync(x => x.Id == id, ct);
+            if (product is null) return (IActionResult)NotFound();
+            product.Name = request.Name.Trim();
+            product.Slug = await UniqueSlug(request.Name, id, ct);
+            product.Description = request.Description.Trim();
+            product.PriceCents = request.PriceCents;
+            product.Badge = Clean(request.Badge, 40);
+            product.Status = request.Status;
+            product.CategoryId = request.CategoryId;
+            product.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.ProductImages.IgnoreQueryFilters().Where(x => x.ProductId == id).ExecuteDeleteAsync(ct);
+            var orderedImages = request.Images.OrderBy(x => x.DisplayOrder).ToList();
+            for (var index = 0; index < orderedImages.Count; index++)
+            {
+                var image = orderedImages[index];
+                db.ProductImages.Add(new ProductImage { ProductId = product.Id, Url = Https(image.Url), AltText = Clean(image.AltText, 200) ?? product.Name, DisplayOrder = index, IsCover = index == 0 });
+            }
+
+            var requestedMarketplaceIds = request.MarketplaceLinks.Select(x => x.MarketplaceId).ToHashSet();
+            foreach (var removedLink in product.MarketplaceLinks.Where(x => !requestedMarketplaceIds.Contains(x.MarketplaceId)))
+            {
+                removedLink.Active = false;
+                removedLink.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+            foreach (var link in request.MarketplaceLinks)
+            {
+                var market = await db.Marketplaces.SingleOrDefaultAsync(x => x.Id == link.MarketplaceId && x.Active, ct);
+                if (market is null) throw new BadHttpRequestException("Marketplace inválido.");
+
+                var existingLink = product.MarketplaceLinks.SingleOrDefault(x => x.MarketplaceId == link.MarketplaceId);
+                if (existingLink is null)
+                {
+                    product.MarketplaceLinks.Add(new ProductMarketplaceLink { Product = product, MarketplaceId = market.Id, Url = Https(link.Url), ExternalProductId = Clean(link.ExternalProductId, 120) });
+                    continue;
+                }
+
+                existingLink.Url = Https(link.Url);
+                existingLink.ExternalProductId = Clean(link.ExternalProductId, 120);
+                existingLink.Active = true;
+                existingLink.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return (IActionResult)NoContent();
+        });
     }
 
     [HttpDelete("{id:guid}")]
@@ -73,8 +107,12 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
 
     private async Task ApplyChildren(Product product, ProductRequest request, CancellationToken ct)
     {
-        foreach (var image in request.Images)
-            product.Images.Add(new ProductImage { Product = product, Url = Https(image.Url), AltText = Clean(image.AltText, 200) ?? product.Name, DisplayOrder = image.DisplayOrder, IsCover = image.IsCover });
+        var orderedImages = request.Images.OrderBy(x => x.DisplayOrder).ToList();
+        for (var index = 0; index < orderedImages.Count; index++)
+        {
+            var image = orderedImages[index];
+            product.Images.Add(new ProductImage { Product = product, Url = Https(image.Url), AltText = Clean(image.AltText, 200) ?? product.Name, DisplayOrder = index, IsCover = index == 0 });
+        }
 
         foreach (var link in request.MarketplaceLinks)
         {
