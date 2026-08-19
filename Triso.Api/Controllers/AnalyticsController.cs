@@ -5,7 +5,7 @@ using Triso.Infrastructure.Persistence;
 
 namespace Triso.Api.Controllers;
 
-[ApiController, Route("api/v1/admin/analytics"), AdminOnly]
+[ApiController, Route("api/v1/admin/analytics"), DashboardAccess]
 public sealed class AnalyticsController(TrisoDbContext db) : ControllerBase
 {
     [HttpGet("dashboard")]

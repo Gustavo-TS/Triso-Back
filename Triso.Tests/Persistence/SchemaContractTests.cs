@@ -15,7 +15,7 @@ public sealed class SchemaContractTests
         var tables = Model.GetEntityTypes().Select(x => x.GetTableName()).OfType<string>().ToHashSet();
         var requiredTables = new HashSet<string>
         {
-            "users", "categories", "products", "product_images", "marketplaces",
+            "users", "permission", "categories", "products", "product_images", "marketplaces",
             "product_marketplace_links", "marketplace_clicks", "sessions", "audit_logs"
         };
 
@@ -23,14 +23,16 @@ public sealed class SchemaContractTests
     }
 
     [Fact]
-    public void User_uses_status_instead_of_the_legacy_active_column()
+    public void User_uses_active_and_permission_without_legacy_role_or_status()
     {
         var user = Model.FindEntityType(typeof(User))!;
         var columns = user.GetProperties().Select(x => x.GetColumnName()).ToHashSet();
 
-        Assert.Contains("status", columns);
+        Assert.Contains("active", columns);
         Assert.Contains("updated_at", columns);
-        Assert.DoesNotContain("active", columns);
+        Assert.Contains("id_permission", columns);
+        Assert.DoesNotContain("status", columns);
+        Assert.DoesNotContain("role", columns);
     }
 
     [Fact]
@@ -39,6 +41,7 @@ public sealed class SchemaContractTests
         Assert.Equal(DeleteBehavior.Restrict, ForeignKey<Product, Category>().DeleteBehavior);
         Assert.Equal(DeleteBehavior.Restrict, ForeignKey<ProductMarketplaceLink, Marketplace>().DeleteBehavior);
         Assert.Equal(DeleteBehavior.Restrict, ForeignKey<MarketplaceClick, ProductMarketplaceLink>().DeleteBehavior);
+        Assert.Equal(DeleteBehavior.Restrict, ForeignKey<User, Permission>().DeleteBehavior);
     }
 
     [Fact]

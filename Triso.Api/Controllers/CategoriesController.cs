@@ -11,7 +11,7 @@ using Triso.Infrastructure.Persistence;
 
 namespace Triso.Api.Controllers;
 
-[ApiController, Route("api/v1/admin/categories"), AdminOnly]
+[ApiController, Route("api/v1/admin/categories"), ManagerAccess]
 public sealed class CategoriesController(TrisoDbContext db) : ControllerBase
 {
     [HttpGet]

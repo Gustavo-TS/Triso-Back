@@ -6,10 +6,18 @@ public sealed class User
     public required string Name { get; set; }
     public required string Email { get; set; }
     public required string PasswordHash { get; set; }
-    public string Role { get; set; } = "customer";
-    public string Status { get; set; } = "active";
+    public int IdPermission { get; set; }
+    public Permission Permission { get; set; } = null!;
+    public bool Active { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class Permission
+{
+    public int IdPermission { get; set; }
+    public required string Name { get; set; }
+    public ICollection<User> Users { get; set; } = [];
 }
 
 public sealed class Category

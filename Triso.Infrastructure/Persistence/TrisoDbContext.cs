@@ -6,6 +6,7 @@ namespace Triso.Infrastructure.Persistence;
 public sealed class TrisoDbContext(DbContextOptions<TrisoDbContext> options) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
@@ -21,18 +22,24 @@ public sealed class TrisoDbContext(DbContextOptions<TrisoDbContext> options) : D
 
         model.Entity<User>(entity =>
         {
-            entity.ToTable("users", table =>
-            {
-                table.HasCheckConstraint("chk_users_role", "role IN ('admin', 'customer')");
-                table.HasCheckConstraint("chk_users_status", "status IN ('active', 'blocked')");
-            });
+            entity.ToTable("users");
             ConfigureId(entity);
             entity.Property(x => x.Name).HasMaxLength(120);
             entity.Property(x => x.Email).HasMaxLength(254);
-            entity.Property(x => x.Role).HasMaxLength(20).HasDefaultValue("customer");
-            entity.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("active");
+            entity.Property(x => x.Active).HasDefaultValue(true);
             ConfigureCreatedAt(entity.Property(x => x.CreatedAt));
             ConfigureUpdatedAt(entity.Property(x => x.UpdatedAt));
+            entity.HasIndex(x => x.IdPermission);
+            entity.HasOne(x => x.Permission).WithMany(x => x.Users).HasForeignKey(x => x.IdPermission).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        model.Entity<Permission>(entity =>
+        {
+            entity.ToTable("permission");
+            entity.HasKey(x => x.IdPermission);
+            entity.Property(x => x.IdPermission).ValueGeneratedOnAdd();
+            entity.Property(x => x.Name).HasColumnName("permission").HasMaxLength(100);
+            entity.HasIndex(x => x.Name).IsUnique();
         });
 
         model.Entity<Category>(entity =>

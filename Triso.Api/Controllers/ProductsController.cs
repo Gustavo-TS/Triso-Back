@@ -11,10 +11,10 @@ using Triso.Infrastructure.Persistence;
 
 namespace Triso.Api.Controllers;
 
-[ApiController, Route("api/v1/admin/products"), AdminOnly]
+[ApiController, Route("api/v1/admin/products")]
 public sealed class ProductsController(TrisoDbContext db) : ControllerBase
 {
-    [HttpGet]
+    [HttpGet, DashboardAccess]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(new
     {
         data = (await db.Products.AsNoTracking().IgnoreQueryFilters()
@@ -25,7 +25,7 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
             .OrderByDescending(x => x.CreatedAt).ToListAsync(ct)).Select(CatalogController.Map)
     });
 
-    [HttpPost]
+    [HttpPost, ManagerAccess]
     public async Task<IActionResult> Create(ProductRequest request, CancellationToken ct)
     {
         var errors = ProductValidator.Validate(request);
@@ -37,7 +37,7 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
         return CreatedAtAction(nameof(List), new { id = product.Id }, new { data = new { product.Id, product.Slug } });
     }
 
-    [HttpPatch("{id:guid}")]
+    [HttpPatch("{id:guid}"), ManagerAccess]
     public async Task<IActionResult> Update(Guid id, ProductRequest request, CancellationToken ct)
     {
         var errors = ProductValidator.Validate(request);
@@ -47,7 +47,7 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
         {
             db.ChangeTracker.Clear();
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
-            var product = await db.Products.Include(x => x.MarketplaceLinks).SingleOrDefaultAsync(x => x.Id == id, ct);
+            var product = await db.Products.SingleOrDefaultAsync(x => x.Id == id, ct);
             if (product is null) return (IActionResult)NotFound();
             product.Name = request.Name.Trim();
             product.Slug = await UniqueSlug(request.Name, id, ct);
@@ -66,27 +66,37 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
             }
 
             var requestedMarketplaceIds = request.MarketplaceLinks.Select(x => x.MarketplaceId).ToHashSet();
-            foreach (var removedLink in product.MarketplaceLinks.Where(x => !requestedMarketplaceIds.Contains(x.MarketplaceId)))
-            {
-                removedLink.Active = false;
-                removedLink.UpdatedAt = DateTimeOffset.UtcNow;
-            }
+            await db.ProductMarketplaceLinks.IgnoreQueryFilters()
+                .Where(x => x.ProductId == id && !requestedMarketplaceIds.Contains(x.MarketplaceId))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.Active, false)
+                    .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
             foreach (var link in request.MarketplaceLinks)
             {
                 var market = await db.Marketplaces.SingleOrDefaultAsync(x => x.Id == link.MarketplaceId && x.Active, ct);
                 if (market is null) throw new BadHttpRequestException("Marketplace inválido.");
 
-                var existingLink = product.MarketplaceLinks.SingleOrDefault(x => x.MarketplaceId == link.MarketplaceId);
-                if (existingLink is null)
-                {
-                    product.MarketplaceLinks.Add(new ProductMarketplaceLink { Product = product, MarketplaceId = market.Id, Url = Https(link.Url), ExternalProductId = Clean(link.ExternalProductId, 120) });
-                    continue;
-                }
+                var url = Https(link.Url);
+                var externalProductId = Clean(link.ExternalProductId, 120);
+                var affected = await db.ProductMarketplaceLinks.IgnoreQueryFilters()
+                    .Where(x => x.ProductId == id && x.MarketplaceId == link.MarketplaceId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(x => x.Url, url)
+                        .SetProperty(x => x.ExternalProductId, externalProductId)
+                        .SetProperty(x => x.Active, true)
+                        .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), ct);
 
-                existingLink.Url = Https(link.Url);
-                existingLink.ExternalProductId = Clean(link.ExternalProductId, 120);
-                existingLink.Active = true;
-                existingLink.UpdatedAt = DateTimeOffset.UtcNow;
+                if (affected == 0)
+                {
+                    db.ProductMarketplaceLinks.Add(new ProductMarketplaceLink
+                    {
+                        ProductId = product.Id,
+                        MarketplaceId = market.Id,
+                        Url = url,
+                        ExternalProductId = externalProductId
+                    });
+                }
             }
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
@@ -94,7 +104,7 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
         });
     }
 
-    [HttpDelete("{id:guid}")]
+    [HttpDelete("{id:guid}"), ManagerAccess]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var product = await db.Products.SingleOrDefaultAsync(x => x.Id == id, ct);

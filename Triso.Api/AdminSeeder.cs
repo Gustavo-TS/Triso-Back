@@ -19,7 +19,8 @@ public static class AdminSeeder
 
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TrisoDbContext>();
-        await AlignLegacyUserSchemaAsync(db, ct);
+        var adminPermission = await db.Permissions.SingleOrDefaultAsync(x => x.Name.ToLower() == "admin", ct)
+            ?? throw new InvalidOperationException("A permissão admin não está cadastrada.");
         var user = await db.Users.IgnoreQueryFilters().SingleOrDefaultAsync(x => x.Email == email, ct);
         if (user is null)
         {
@@ -28,38 +29,13 @@ public static class AdminSeeder
         }
 
         user.Name = name;
-        user.Role = "admin";
-        user.Status = "active";
+        user.IdPermission = adminPermission.IdPermission;
+        user.Permission = adminPermission;
+        user.Active = true;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         user.PasswordHash = new PasswordHasher<User>().HashPassword(user, password);
         await db.SaveChangesAsync(ct);
 
         Console.WriteLine($"Administrador preparado: {email}");
-    }
-
-    private static async Task AlignLegacyUserSchemaAsync(TrisoDbContext db, CancellationToken ct)
-    {
-        await db.Database.ExecuteSqlRawAsync(
-            """
-            ALTER TABLE public.users ADD COLUMN IF NOT EXISTS status VARCHAR(20);
-            ALTER TABLE public.users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-
-            DO $$
-            BEGIN
-                IF EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'active'
-                ) THEN
-                    UPDATE public.users
-                    SET status = CASE WHEN active THEN 'active' ELSE 'blocked' END
-                    WHERE status IS NULL;
-                    ALTER TABLE public.users ALTER COLUMN active SET DEFAULT TRUE;
-                END IF;
-            END $$;
-
-            UPDATE public.users SET status = 'active' WHERE status IS NULL;
-            ALTER TABLE public.users ALTER COLUMN status SET DEFAULT 'active';
-            ALTER TABLE public.users ALTER COLUMN status SET NOT NULL;
-            """, ct);
     }
 }

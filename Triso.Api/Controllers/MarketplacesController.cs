@@ -11,7 +11,7 @@ using Triso.Infrastructure.Persistence;
 
 namespace Triso.Api.Controllers;
 
-[ApiController, Route("api/v1/admin/marketplaces"), AdminOnly]
+[ApiController, Route("api/v1/admin/marketplaces"), ManagerAccess]
 public sealed class MarketplacesController(TrisoDbContext db) : ControllerBase
 {
     [HttpGet]

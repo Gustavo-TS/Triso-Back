@@ -1,8 +1,12 @@
 using System.Globalization;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 using Triso.Api;
+using Triso.Api.Filters;
 using Triso.Api.Middleware;
 using Triso.Infrastructure.Persistence;
 
@@ -35,8 +39,51 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
         return Task.CompletedTask;
     };
+    options.Events.OnValidatePrincipal = async context =>
+    {
+        var idValue = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(idValue, out var userId))
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            return;
+        }
+
+        var db = context.HttpContext.RequestServices.GetRequiredService<TrisoDbContext>();
+        var user = await db.Users.AsNoTracking().Include(x => x.Permission)
+            .SingleOrDefaultAsync(x => x.Id == userId && x.Active, context.HttpContext.RequestAborted);
+        if (user is null)
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            return;
+        }
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.Name),
+            new Claim(ClaimTypes.Email, user.Email),
+            new Claim(ClaimTypes.Role, user.Permission.Name.ToLowerInvariant()),
+            new Claim(PermissionPolicies.ClaimType, user.IdPermission.ToString())
+        };
+        var shouldRenew = context.Principal?.FindFirstValue(PermissionPolicies.ClaimType) != user.IdPermission.ToString() ||
+                          context.Principal?.FindFirstValue(ClaimTypes.Role) != user.Permission.Name.ToLowerInvariant() ||
+                          context.Principal?.FindFirstValue(ClaimTypes.Name) != user.Name ||
+                          context.Principal?.FindFirstValue(ClaimTypes.Email) != user.Email;
+        context.ReplacePrincipal(new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+        context.ShouldRenew = shouldRenew;
+    };
 });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(PermissionPolicies.Admin, policy =>
+        policy.RequireClaim(PermissionPolicies.ClaimType, "1"));
+    options.AddPolicy(PermissionPolicies.Manager, policy =>
+        policy.RequireClaim(PermissionPolicies.ClaimType, "1", "2"));
+    options.AddPolicy(PermissionPolicies.Dashboard, policy =>
+        policy.RequireClaim(PermissionPolicies.ClaimType, "1", "2", "3"));
+});
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
