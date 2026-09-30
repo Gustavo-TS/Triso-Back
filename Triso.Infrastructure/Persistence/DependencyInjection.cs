@@ -19,7 +19,7 @@ public static class DependencyInjection
     public static IServiceCollection AddPersistence(this IServiceCollection services, string databaseUrl, string? databaseName = null)
     {
         services.AddDbContext<TrisoDbContext>(options => options.UseNpgsql(DatabaseUrl.ToConnectionString(databaseUrl, databaseName), npgsql => npgsql.EnableRetryOnFailure()).UseSnakeCaseNamingConvention());
-        services.AddScoped<IOrderRepository, EfOrderRepository>(); services.AddScoped<IUserRepository, EfUserRepository>(); services.AddScoped<IProductRepository, EfProductRepository>(); services.AddScoped<IPaymentRepository, EfPaymentRepository>(); services.AddScoped<IOutboxRepository, EfOutboxRepository>(); services.AddScoped<IShippingQuoteRepository, EfShippingQuoteRepository>(); services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<IOrderRepository, EfOrderRepository>(); services.AddScoped<IUserRepository, EfUserRepository>(); services.AddScoped<IUserAddressRepository, EfUserAddressRepository>(); services.AddScoped<IProductRepository, EfProductRepository>(); services.AddScoped<IPaymentRepository, EfPaymentRepository>(); services.AddScoped<IOutboxRepository, EfOutboxRepository>(); services.AddScoped<IShippingQuoteRepository, EfShippingQuoteRepository>(); services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IUserPasswordHasher, IdentityUserPasswordHasher>();
         services.AddScoped<INotificationSender, LoggingNotificationSender>();
         services.AddScoped<IShippingGateway, MelhorEnvioShippingGateway>();

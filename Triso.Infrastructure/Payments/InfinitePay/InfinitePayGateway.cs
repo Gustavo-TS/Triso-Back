@@ -18,14 +18,16 @@ internal sealed class InfinitePayGateway(InfinitePayClient client, InfinitePayOp
     }
     public async Task<PaymentVerificationResult> VerifyPaymentAsync(PaymentVerificationCommand command, CancellationToken ct)
     {
-        var response = await client.CheckPaymentAsync(new PaymentCheckRequest(options.Handle, command.OrderNsu, command.TransactionNsu), ct);
+        var response = await client.CheckPaymentAsync(new PaymentCheckRequest(options.Handle, command.OrderNsu, command.TransactionNsu, command.InvoiceSlug), ct);
         var method = response.Capture_Method?.Equals("pix", StringComparison.OrdinalIgnoreCase) == true ? PaymentMethod.Pix :
             response.Capture_Method?.Equals("credit_card", StringComparison.OrdinalIgnoreCase) == true ? PaymentMethod.CreditCard : PaymentMethod.Unknown;
-        return new PaymentVerificationResult(response.Success && response.Paid, command.TransactionNsu, response.Amount, response.Paid ? PaymentStatus.Paid : PaymentStatus.Failed, method);
+        return new PaymentVerificationResult(response.Success && response.Paid, command.TransactionNsu, response.Amount, response.Paid_Amount, response.Installments, response.Paid ? PaymentStatus.Paid : PaymentStatus.Failed, method);
     }
     public Task<PaymentNotification> ParseWebhookAsync(string rawPayload, IReadOnlyDictionary<string, string> headers, CancellationToken ct)
     {
-        var webhook = JsonSerializer.Deserialize<WebhookDto>(rawPayload) ?? throw new InvalidOperationException("Webhook inv\u00e1lido.");
-        return Task.FromResult(new PaymentNotification(webhook.Order_Nsu ?? string.Empty, webhook.Transaction_Nsu));
+        var webhook = JsonSerializer.Deserialize<WebhookDto>(rawPayload, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? throw new InvalidOperationException("Webhook inv\u00e1lido.");
+        if (string.IsNullOrWhiteSpace(webhook.Order_Nsu) || string.IsNullOrWhiteSpace(webhook.Transaction_Nsu) || string.IsNullOrWhiteSpace(webhook.Invoice_Slug)) throw new InvalidOperationException("Webhook sem referência de pagamento.");
+        var safe = JsonSerializer.Serialize(new { invoice_slug = webhook.Invoice_Slug, amount = webhook.Amount, paid_amount = webhook.Paid_Amount, installments = webhook.Installments, capture_method = webhook.Capture_Method, transaction_nsu = webhook.Transaction_Nsu, order_nsu = webhook.Order_Nsu, receipt_url = webhook.Receipt_Url });
+        return Task.FromResult(new PaymentNotification(webhook.Order_Nsu, webhook.Transaction_Nsu, webhook.Invoice_Slug, webhook.Receipt_Url, safe));
     }
 }

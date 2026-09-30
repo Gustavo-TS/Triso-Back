@@ -34,7 +34,7 @@ else if (builder.Environment.IsDevelopment())
     builder.Services.AddScoped<IPaymentGateway>(_ => new MockPaymentGateway(mockFrontendUrl));
 }
 else builder.Services.AddScoped<IPaymentGateway, UnconfiguredPaymentGateway>();
-builder.Services.AddScoped<RegisterCustomerUseCase>(); builder.Services.AddScoped<GetCustomerProfileUseCase>(); builder.Services.AddScoped<UpdateCustomerProfileUseCase>();
+builder.Services.AddScoped<RegisterCustomerUseCase>(); builder.Services.AddScoped<GetCustomerProfileUseCase>(); builder.Services.AddScoped<UpdateCustomerProfileUseCase>(); builder.Services.AddScoped<CustomerAddressesUseCase>();
 builder.Services.AddScoped<CreateOrderUseCase>(); builder.Services.AddScoped<CreateCheckoutUseCase>(); builder.Services.AddScoped<GetCustomerOrdersUseCase>(); builder.Services.AddScoped<GetOrderDetailsUseCase>(); builder.Services.AddScoped<UpdateOrderStatusUseCase>(); builder.Services.AddScoped<ProcessPaymentWebhookUseCase>();
 builder.Services.AddScoped<Triso.Application.Shipping.QuoteShippingUseCase>();
 builder.Services.AddControllers();

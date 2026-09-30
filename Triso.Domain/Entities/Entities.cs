@@ -13,6 +13,26 @@ public sealed class User
     public bool Active { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<UserAddress> Addresses { get; set; } = [];
+}
+
+public sealed class UserAddress
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public User User { get; set; } = null!;
+    public required string Label { get; set; }
+    public required string RecipientName { get; set; }
+    public required string PostalCode { get; set; }
+    public required string Street { get; set; }
+    public required string Number { get; set; }
+    public string? Complement { get; set; }
+    public required string Neighborhood { get; set; }
+    public required string City { get; set; }
+    public required string State { get; set; }
+    public bool IsDefault { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class Permission
@@ -176,8 +196,29 @@ public sealed class Payment
     public PaymentMethod Method { get; set; } = PaymentMethod.Unknown;
     public long AmountCents { get; set; }
     public string? CheckoutUrl { get; set; }
+    public string? InvoiceSlug { get; set; }
+    public string? ReceiptUrl { get; set; }
+    public long? PaidAmountCents { get; set; }
+    public int? Installments { get; set; }
+    public DateTimeOffset? PaidAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PaymentWebhookEvent
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? OrderId { get; set; }
+    public Order? Order { get; set; }
+    public required string Provider { get; set; }
+    public string? OrderNsu { get; set; }
+    public string? ExternalTransactionId { get; set; }
+    public string? ExternalInvoiceSlug { get; set; }
+    public required string Status { get; set; }
+    public string? FailureReason { get; set; }
+    public required string SanitizedPayload { get; set; }
+    public DateTimeOffset ReceivedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ProcessedAt { get; set; }
 }
 
 public sealed class OrderStatusHistory

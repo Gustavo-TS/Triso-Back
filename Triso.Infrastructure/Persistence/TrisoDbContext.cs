@@ -7,6 +7,7 @@ namespace Triso.Infrastructure.Persistence;
 public sealed class TrisoDbContext(DbContextOptions<TrisoDbContext> options) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<UserAddress> UserAddresses => Set<UserAddress>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
@@ -20,6 +21,7 @@ public sealed class TrisoDbContext(DbContextOptions<TrisoDbContext> options) : D
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<OrderAddress> OrderAddresses => Set<OrderAddress>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentWebhookEvent> PaymentWebhookEvents => Set<PaymentWebhookEvent>();
     public DbSet<OrderStatusHistory> OrderStatusHistory => Set<OrderStatusHistory>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -42,6 +44,31 @@ public sealed class TrisoDbContext(DbContextOptions<TrisoDbContext> options) : D
             entity.HasIndex(x => x.IdPermission);
             entity.HasIndex(x => x.Email).IsUnique();
             entity.HasOne(x => x.Permission).WithMany(x => x.Users).HasForeignKey(x => x.IdPermission).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        model.Entity<UserAddress>(entity =>
+        {
+            entity.ToTable("user_addresses", table =>
+            {
+                table.HasCheckConstraint("chk_user_addresses_postal_code", "postal_code ~ '^[0-9]{8}$'");
+                table.HasCheckConstraint("chk_user_addresses_state", "state ~ '^[A-Z]{2}$'");
+            });
+            ConfigureId(entity);
+            entity.Property(x => x.Label).HasMaxLength(60);
+            entity.Property(x => x.RecipientName).HasMaxLength(120);
+            entity.Property(x => x.PostalCode).HasMaxLength(8);
+            entity.Property(x => x.Street).HasMaxLength(160);
+            entity.Property(x => x.Number).HasMaxLength(30);
+            entity.Property(x => x.Complement).HasMaxLength(100);
+            entity.Property(x => x.Neighborhood).HasMaxLength(100);
+            entity.Property(x => x.City).HasMaxLength(100);
+            entity.Property(x => x.State).HasMaxLength(2);
+            entity.Property(x => x.IsDefault).HasDefaultValue(false);
+            ConfigureCreatedAt(entity.Property(x => x.CreatedAt));
+            ConfigureUpdatedAt(entity.Property(x => x.UpdatedAt));
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.UserId).IsUnique().HasFilter("is_default").HasDatabaseName("ux_user_addresses_one_default_per_user");
+            entity.HasOne(x => x.User).WithMany(x => x.Addresses).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         model.Entity<Permission>(entity =>
@@ -192,11 +219,12 @@ public sealed class TrisoDbContext(DbContextOptions<TrisoDbContext> options) : D
         model.Entity<Payment>(entity =>
         {
             entity.ToTable("payments"); ConfigureId(entity); entity.Property(x => x.Provider).HasMaxLength(50); entity.Property(x => x.OrderNsu).HasMaxLength(100); entity.Property(x => x.TransactionNsu).HasMaxLength(100);
-            entity.Property(x => x.Status).HasConversion(value => PaymentStatusToDatabase(value), value => PaymentStatusFromDatabase(value)).HasMaxLength(20); entity.Property(x => x.Method).HasColumnName("capture_method").HasConversion(value => PaymentMethodToDatabase(value), value => PaymentMethodFromDatabase(value)).HasMaxLength(20); entity.Property(x => x.CheckoutUrl).HasMaxLength(2048);
+            entity.Property(x => x.Status).HasConversion(value => PaymentStatusToDatabase(value), value => PaymentStatusFromDatabase(value)).HasMaxLength(20); entity.Property(x => x.Method).HasColumnName("capture_method").HasConversion(value => PaymentMethodToDatabase(value), value => PaymentMethodFromDatabase(value)).HasMaxLength(20); entity.Property(x => x.CheckoutUrl).HasMaxLength(2048); entity.Property(x => x.InvoiceSlug).HasColumnName("invoice_slug").HasMaxLength(200); entity.Property(x => x.ReceiptUrl).HasColumnName("receipt_url").HasMaxLength(2048); entity.Property(x => x.PaidAmountCents).HasColumnName("paid_amount_cents"); entity.Property(x => x.PaidAt).HasColumnName("paid_at");
             ConfigureCreatedAt(entity.Property(x => x.CreatedAt)); ConfigureUpdatedAt(entity.Property(x => x.UpdatedAt));
             entity.HasIndex(x => x.OrderId).IsUnique(); entity.HasIndex(x => x.OrderNsu).IsUnique(); entity.HasIndex(x => x.TransactionNsu).IsUnique().HasFilter("transaction_nsu IS NOT NULL");
             entity.HasOne(x => x.Order).WithOne(x => x.Payment).HasForeignKey<Payment>(x => x.OrderId).OnDelete(DeleteBehavior.Cascade);
         });
+        model.Entity<PaymentWebhookEvent>(entity => { entity.ToTable("payment_webhook_events"); ConfigureId(entity); entity.Property(x => x.Provider).HasMaxLength(50); entity.Property(x => x.OrderNsu).HasMaxLength(100); entity.Property(x => x.ExternalTransactionId).HasMaxLength(100); entity.Property(x => x.ExternalInvoiceSlug).HasMaxLength(200); entity.Property(x => x.Status).HasMaxLength(30); entity.Property(x => x.FailureReason).HasMaxLength(500); entity.Property(x => x.SanitizedPayload).HasColumnType("jsonb"); ConfigureCreatedAt(entity.Property(x => x.ReceivedAt)); entity.HasIndex(x => x.OrderId); entity.HasIndex(x => new { x.Provider, x.ExternalTransactionId }).IsUnique().HasFilter("external_transaction_id IS NOT NULL"); entity.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.SetNull); });
         model.Entity<OrderStatusHistory>(entity => { entity.ToTable("order_status_history"); ConfigureId(entity); entity.Property(x => x.Status).HasColumnName("new_status").HasConversion(value => OrderStatusToDatabase(value), value => OrderStatusFromDatabase(value)).HasMaxLength(30); entity.Property(x => x.Note).HasMaxLength(500); ConfigureCreatedAt(entity.Property(x => x.CreatedAt)); entity.HasIndex(x => x.OrderId); entity.HasOne(x => x.Order).WithMany(x => x.StatusHistory).HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<Notification>(entity => { entity.ToTable("notifications"); ConfigureId(entity); entity.Property(x => x.Type).HasMaxLength(100); entity.Property(x => x.Content).HasColumnType("text"); ConfigureCreatedAt(entity.Property(x => x.CreatedAt)); entity.HasIndex(x => x.UserId); });
         model.Entity<OutboxMessage>(entity => { entity.ToTable("outbox_messages"); ConfigureId(entity); entity.Property(x => x.Type).HasMaxLength(100); entity.Property(x => x.Destination).HasMaxLength(254); entity.Property(x => x.Payload).HasColumnType("jsonb"); entity.Property(x => x.Status).HasMaxLength(20); entity.Property(x => x.LastError).HasColumnType("text"); ConfigureCreatedAt(entity.Property(x => x.CreatedAt)); entity.HasIndex(x => new { x.Status, x.NextAttemptAt }); });

@@ -1,8 +1,7 @@
 using Triso.Application.Ports.Persistence;
-using Triso.Application.Ports.Security;
 using Triso.Domain.Entities;
 namespace Triso.Application.Customers;
-public sealed class UpdateCustomerProfileUseCase(IUserRepository users, IUserPasswordHasher passwords, IUnitOfWork unitOfWork)
+public sealed class UpdateCustomerProfileUseCase(IUserRepository users, IUnitOfWork unitOfWork)
 {
     public async Task<bool> ExecuteAsync(Guid userId, UpdateCustomerProfileRequest request, CancellationToken ct)
     {
@@ -16,7 +15,6 @@ public sealed class UpdateCustomerProfileUseCase(IUserRepository users, IUserPas
             user.Email = email;
         }
         if (request.Name is not null) user.Name = request.Name.Trim();
-        if (request.Password is not null) user.PasswordHash = passwords.Hash(user, request.Password);
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await unitOfWork.SaveChangesAsync(ct);
         return true;
