@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
@@ -8,12 +9,34 @@ using Microsoft.EntityFrameworkCore;
 using Triso.Api;
 using Triso.Api.Filters;
 using Triso.Api.Middleware;
+using Triso.Application.Customers;
+using Triso.Application.Orders;
 using Triso.Infrastructure.Persistence;
+using Triso.Infrastructure.Payments.InfinitePay;
+using Triso.Infrastructure.Payments;
+using Triso.Application.Ports.Payments;
 
 EnvLoader.Load();
 var builder = WebApplication.CreateBuilder(args);
 var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL") ?? throw new InvalidOperationException("DATABASE_URL não configurada.");
 builder.Services.AddPersistence(databaseUrl, builder.Configuration["DatabaseName"]);
+var infinitePayHandle = Environment.GetEnvironmentVariable("INFINITEPAY_HANDLE");
+var infinitePayBaseUrl = Environment.GetEnvironmentVariable("INFINITEPAY_BASE_URL");
+var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL");
+var apiPublicUrl = Environment.GetEnvironmentVariable("API_PUBLIC_URL");
+if (!string.IsNullOrWhiteSpace(infinitePayHandle) && !string.IsNullOrWhiteSpace(infinitePayBaseUrl) && !string.IsNullOrWhiteSpace(frontendUrl) && !string.IsNullOrWhiteSpace(apiPublicUrl))
+{
+    builder.Services.AddInfinitePay(new InfinitePayOptions { Handle = infinitePayHandle, BaseUrl = infinitePayBaseUrl, FrontendUrl = frontendUrl, ApiPublicUrl = apiPublicUrl });
+}
+else if (builder.Environment.IsDevelopment())
+{
+    var mockFrontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "http://localhost:5173";
+    builder.Services.AddScoped<IPaymentGateway>(_ => new MockPaymentGateway(mockFrontendUrl));
+}
+else builder.Services.AddScoped<IPaymentGateway, UnconfiguredPaymentGateway>();
+builder.Services.AddScoped<RegisterCustomerUseCase>(); builder.Services.AddScoped<GetCustomerProfileUseCase>(); builder.Services.AddScoped<UpdateCustomerProfileUseCase>();
+builder.Services.AddScoped<CreateOrderUseCase>(); builder.Services.AddScoped<CreateCheckoutUseCase>(); builder.Services.AddScoped<GetCustomerOrdersUseCase>(); builder.Services.AddScoped<GetOrderDetailsUseCase>(); builder.Services.AddScoped<UpdateOrderStatusUseCase>(); builder.Services.AddScoped<ProcessPaymentWebhookUseCase>();
+builder.Services.AddScoped<Triso.Application.Shipping.QuoteShippingUseCase>();
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 if (builder.Environment.IsDevelopment())
@@ -22,9 +45,11 @@ if (builder.Environment.IsDevelopment())
 }
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
 {
-    options.Cookie.Name = "__Host-triso_session";
+    options.Cookie.Name = builder.Environment.IsDevelopment() ? "triso_session" : "__Host-triso_session";
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
     options.Cookie.SameSite = builder.Environment.IsDevelopment() ? SameSiteMode.Strict : SameSiteMode.None;
     options.Cookie.Path = "/";
     options.ExpireTimeSpan = TimeSpan.FromHours(8);
@@ -127,15 +152,41 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("public", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-    options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
+    options.AddPolicy("login", context => builder.Environment.IsDevelopment()
+        ? RateLimitPartition.GetNoLimiter("development-login")
+        : RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
     options.AddPolicy("click", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 var origins = (Environment.GetEnvironmentVariable("FRONTEND_ORIGINS") ?? "http://localhost:5173").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-builder.Services.AddCors(options => options.AddPolicy("frontend", policy => policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+builder.Services.AddCors(options => options.AddPolicy("frontend", policy =>
+{
+    if (builder.Environment.IsDevelopment())
+    {
+        policy.SetIsOriginAllowed(origin =>
+        {
+            if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+            if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;
+            if (!IPAddress.TryParse(uri.Host, out var address)) return false;
+            if (IPAddress.IsLoopback(address)) return true;
+
+            var bytes = address.GetAddressBytes();
+            return address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+                   (bytes[0] == 10 ||
+                    bytes[0] == 192 && bytes[1] == 168 ||
+                    bytes[0] == 172 && bytes[1] is >= 16 and <= 31);
+        });
+    }
+    else
+    {
+        policy.WithOrigins(origins);
+    }
+
+    policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+}));
 var app = builder.Build();
 if (args.Contains("--seed-admin", StringComparer.OrdinalIgnoreCase))
 {

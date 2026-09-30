@@ -1,0 +1,10 @@
+using Triso.Domain.Enums;
+namespace Triso.Application.Ports.Payments;
+public sealed record CreateCheckoutItem(string Name, long UnitPriceCents, int Quantity);
+public sealed record CreateCheckoutCustomer(string Name, string Email);
+public sealed record CreateCheckoutAddress(string Street, string Number, string? Complement, string Neighborhood, string City, string State, string PostalCode);
+public sealed record CreateCheckoutCommand(string OrderNsu, long AmountCents, IReadOnlyList<CreateCheckoutItem> Items, CreateCheckoutCustomer Customer, CreateCheckoutAddress Address);
+public sealed record CreateCheckoutResult(string CheckoutUrl);
+public sealed record PaymentVerificationCommand(string OrderNsu, string TransactionNsu, long? ExpectedAmountCents = null);
+public sealed record PaymentVerificationResult(bool Confirmed, string? TransactionNsu, long AmountCents, PaymentStatus Status, PaymentMethod Method);
+public sealed record PaymentNotification(string OrderNsu, string? TransactionNsu);

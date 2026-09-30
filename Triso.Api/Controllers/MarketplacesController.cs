@@ -11,10 +11,10 @@ using Triso.Infrastructure.Persistence;
 
 namespace Triso.Api.Controllers;
 
-[ApiController, Route("api/v1/admin/marketplaces"), ManagerAccess]
+[ApiController, Route("api/v1/admin/marketplaces")]
 public sealed class MarketplacesController(TrisoDbContext db) : ControllerBase
 {
-    [HttpGet]
+    [HttpGet, ManagerAccess]
     public async Task<IActionResult> List(CancellationToken ct)
     {
         var marketplaces = await db.Marketplaces.AsNoTracking().OrderBy(x => x.Name)
@@ -23,7 +23,7 @@ public sealed class MarketplacesController(TrisoDbContext db) : ControllerBase
         return Ok(new { data = marketplaces });
     }
 
-    [HttpGet("{id:guid}")]
+    [HttpGet("{id:guid}"), ManagerAccess]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
         var marketplace = await db.Marketplaces.AsNoTracking()
@@ -33,7 +33,7 @@ public sealed class MarketplacesController(TrisoDbContext db) : ControllerBase
         return marketplace is null ? NotFound() : Ok(new { data = marketplace });
     }
 
-    [HttpPost]
+    [HttpPost, AdminOnly]
     public async Task<IActionResult> Create(MarketplaceRequest request, CancellationToken ct)
     {
         var errors = MarketplaceValidator.Validate(request);
@@ -55,7 +55,7 @@ public sealed class MarketplacesController(TrisoDbContext db) : ControllerBase
         });
     }
 
-    [HttpPatch("{id:guid}")]
+    [HttpPatch("{id:guid}"), AdminOnly]
     public async Task<IActionResult> Update(Guid id, MarketplaceUpdateRequest request, CancellationToken ct)
     {
         var errors = MarketplaceValidator.Validate(request);
@@ -75,7 +75,7 @@ public sealed class MarketplacesController(TrisoDbContext db) : ControllerBase
         return NoContent();
     }
 
-    [HttpDelete("{id:guid}")]
+    [HttpDelete("{id:guid}"), AdminOnly]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var marketplace = await db.Marketplaces.SingleOrDefaultAsync(x => x.Id == id, ct);

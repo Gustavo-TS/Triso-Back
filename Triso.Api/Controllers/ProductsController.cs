@@ -28,9 +28,15 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
     [HttpPost, ManagerAccess]
     public async Task<IActionResult> Create(ProductRequest request, CancellationToken ct)
     {
+        request = request with { MarketplaceLinks = request.MarketplaceLinks ?? [] };
         var errors = ProductValidator.Validate(request);
         if (errors.Count > 0) return ValidationProblem(new ValidationProblemDetails(errors));
         var product = new Product { Name = request.Name.Trim(), Slug = await UniqueSlug(request.Name, null, ct), Description = request.Description.Trim(), PriceCents = request.PriceCents, Badge = Clean(request.Badge, 40), Status = request.Status, CategoryId = request.CategoryId };
+        product.RequiresShipping = request.RequiresShipping;
+        product.WeightGrams = request.RequiresShipping ? request.WeightGrams : null;
+        product.WidthCm = request.RequiresShipping ? request.WidthCm : null;
+        product.HeightCm = request.RequiresShipping ? request.HeightCm : null;
+        product.LengthCm = request.RequiresShipping ? request.LengthCm : null;
         await ApplyChildren(product, request, ct);
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
@@ -40,6 +46,7 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
     [HttpPatch("{id:guid}"), ManagerAccess]
     public async Task<IActionResult> Update(Guid id, ProductRequest request, CancellationToken ct)
     {
+        request = request with { MarketplaceLinks = request.MarketplaceLinks ?? [] };
         var errors = ProductValidator.Validate(request);
         if (errors.Count > 0) return ValidationProblem(new ValidationProblemDetails(errors));
         var strategy = db.Database.CreateExecutionStrategy();
@@ -56,6 +63,11 @@ public sealed class ProductsController(TrisoDbContext db) : ControllerBase
             product.Badge = Clean(request.Badge, 40);
             product.Status = request.Status;
             product.CategoryId = request.CategoryId;
+            product.RequiresShipping = request.RequiresShipping;
+            product.WeightGrams = request.RequiresShipping ? request.WeightGrams : null;
+            product.WidthCm = request.RequiresShipping ? request.WidthCm : null;
+            product.HeightCm = request.RequiresShipping ? request.HeightCm : null;
+            product.LengthCm = request.RequiresShipping ? request.LengthCm : null;
             product.UpdatedAt = DateTimeOffset.UtcNow;
             await db.ProductImages.IgnoreQueryFilters().Where(x => x.ProductId == id).ExecuteDeleteAsync(ct);
             var orderedImages = request.Images.OrderBy(x => x.DisplayOrder).ToList();
