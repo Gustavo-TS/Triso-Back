@@ -161,7 +161,7 @@ builder.Services.AddRateLimiter(options =>
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
-var origins = (Environment.GetEnvironmentVariable("FRONTEND_ORIGINS") ?? "http://localhost:5173").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+var origins = (frontendUrl ?? "http://localhost:5173").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options => options.AddPolicy("frontend", policy =>
 {
     if (builder.Environment.IsDevelopment())
