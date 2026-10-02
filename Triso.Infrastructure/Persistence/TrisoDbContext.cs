@@ -15,6 +15,7 @@ public sealed class TrisoDbContext(DbContextOptions<TrisoDbContext> options) : D
     public DbSet<Marketplace> Marketplaces => Set<Marketplace>();
     public DbSet<ProductMarketplaceLink> ProductMarketplaceLinks => Set<ProductMarketplaceLink>();
     public DbSet<MarketplaceClick> MarketplaceClicks => Set<MarketplaceClick>();
+    public DbSet<CampaignDownload> CampaignDownloads => Set<CampaignDownload>();
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Order> Orders => Set<Order>();
@@ -165,6 +166,18 @@ public sealed class TrisoDbContext(DbContextOptions<TrisoDbContext> options) : D
             entity.HasIndex(x => new { x.ProductMarketplaceLinkId, x.ClickedAt });
             entity.HasOne(x => x.ProductMarketplaceLink).WithMany().HasForeignKey(x => x.ProductMarketplaceLinkId).OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(x => x.ProductMarketplaceLink.Product.DeletedAt == null);
+        });
+
+        model.Entity<CampaignDownload>(entity =>
+        {
+            entity.ToTable("campaign_downloads");
+            ConfigureId(entity);
+            entity.Property(x => x.Campaign).HasMaxLength(80);
+            entity.Property(x => x.AnonymousTokenHash).HasMaxLength(128);
+            entity.Property(x => x.Source).HasMaxLength(40);
+            ConfigureCreatedAt(entity.Property(x => x.CreatedAt));
+            entity.HasIndex(x => new { x.Campaign, x.AnonymousTokenHash }).IsUnique();
+            entity.HasIndex(x => x.Campaign).HasDatabaseName("ix_campaign_downloads_campaign");
         });
 
         model.Entity<Session>(entity =>
