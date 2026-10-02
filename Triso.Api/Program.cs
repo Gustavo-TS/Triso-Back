@@ -39,6 +39,7 @@ builder.Services.AddScoped<CreateOrderUseCase>(); builder.Services.AddScoped<Cre
 builder.Services.AddScoped<Triso.Application.Shipping.QuoteShippingUseCase>();
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
+builder.Services.AddResponseCompression();
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddSwaggerGen();
@@ -203,6 +204,7 @@ app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseExceptionHandler();
 app.UseForwardedHeaders();
 app.UseHttpsRedirection();
+app.UseResponseCompression();
 app.UseCors("frontend");
 app.UseAuthentication();
 app.UseRateLimiter();

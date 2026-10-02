@@ -155,6 +155,12 @@ public sealed class Order
         Status = next;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    public void SetStatusByAdministrator(OrderStatus next)
+    {
+        Status = next;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
 }
 
 public sealed class OrderItem
@@ -163,6 +169,7 @@ public sealed class OrderItem
     public Guid OrderId { get; set; }
     public Order Order { get; set; } = null!;
     public Guid ProductId { get; set; }
+    public Product? Product { get; set; }
     public required string ProductName { get; set; }
     public long UnitPriceCents { get; set; }
     public int Quantity { get; set; }
@@ -220,6 +227,17 @@ public sealed class PaymentWebhookEvent
     public DateTimeOffset ReceivedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ProcessedAt { get; set; }
 }
+
+public sealed class AdminTask
+{
+    public Guid Id { get; set; } = Guid.NewGuid(); public required string Title { get; set; }
+    public AdminTaskType Type { get; set; } public string? Notes { get; set; } public DateOnly DueDate { get; set; }
+    public bool IsCompleted { get; set; } public string CompletionSource { get; set; } = "manual";
+    public DateTimeOffset? CompletedAt { get; set; } public Guid? CompletedByUserId { get; set; }
+    public Guid CreatedByUserId { get; set; } public Guid? AssignedToUserId { get; set; } public User? AssignedToUser { get; set; } public Guid? UpdatedByUserId { get; set; } public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow; public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<AdminTaskOrder> Orders { get; set; } = [];
+}
+public sealed class AdminTaskOrder { public Guid TaskId { get; set; } public AdminTask Task { get; set; } = null!; public Guid OrderId { get; set; } public Order Order { get; set; } = null!; public DateTimeOffset? CompletedAt { get; set; } public Guid? CompletedByUserId { get; set; } public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow; }
 
 public sealed class OrderStatusHistory
 {

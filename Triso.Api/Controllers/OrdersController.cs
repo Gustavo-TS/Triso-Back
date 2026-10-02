@@ -24,11 +24,11 @@ public sealed class OrdersController(CreateOrderUseCase createOrder, CreateCheck
         catch (HttpRequestException) { return Problem(statusCode: StatusCodes.Status502BadGateway, title: "N\u00e3o foi poss\u00edvel criar o checkout."); }
         catch (InvalidOperationException) { return Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Gateway de pagamento n\u00e3o configurado."); }
     }
-    [HttpPatch("admin/orders/{id:guid}/status"), AdminOnly]
+    [HttpPatch("admin/orders/{id:guid}/status"), ManagerAccess]
     public async Task<IActionResult> UpdateStatus(Guid id, UpdateStatusRequest request, CancellationToken ct)
     {
-        try { return await updateStatus.ExecuteAsync(id, request.Status, ct) ? NoContent() : NotFound(); }
-        catch (InvalidOperationException) { return Conflict(new { error = "Transi\u00e7\u00e3o de status inv\u00e1lida." }); }
+        try { var isAdmin = User.HasClaim(PermissionPolicies.ClaimType, "1"); return await updateStatus.ExecuteAsync(id, request.Status, ct, isAdmin) ? NoContent() : NotFound(); }
+        catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
     }
     private Guid UserId() => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 }
