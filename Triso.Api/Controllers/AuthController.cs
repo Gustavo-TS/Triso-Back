@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Triso.Api.Filters;
 using Triso.Application.Auth;
+using Triso.Application.Customers;
 using Triso.Application.Validation;
 using Triso.Domain.Entities;
 using Triso.Infrastructure.Persistence;
@@ -16,8 +17,18 @@ using Triso.Infrastructure.Persistence;
 namespace Triso.Api.Controllers;
 
 [ApiController, Route("api/v1/auth")]
-public sealed class AuthController(TrisoDbContext db) : ControllerBase
+public sealed class AuthController(TrisoDbContext db, RegisterCustomerUseCase registration) : ControllerBase
 {
+    [HttpPost("register"), EnableRateLimiting("login")]
+    public async Task<IActionResult> Register(RegisterCustomerRequest request, CancellationToken ct)
+    {
+        var errors = AuthValidator.Validate(request);
+        if (errors.Count > 0) return ValidationProblem(new ValidationProblemDetails(errors));
+        var profile = await registration.ExecuteAsync(request, ct);
+        if (profile is null) return Conflict(new { error = "J\u00e1 existe um usu\u00e1rio com este e-mail." });
+        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, CreatePrincipal(profile));
+        return StatusCode(StatusCodes.Status201Created, new { data = profile });
+    }
     [HttpPost("bootstrap"), EnableRateLimiting("login")]
     public async Task<IActionResult> Bootstrap(BootstrapAdminRequest request, CancellationToken ct)
     {
@@ -90,6 +101,16 @@ public sealed class AuthController(TrisoDbContext db) : ControllerBase
             new Claim(ClaimTypes.Email, user.Email),
             new Claim(ClaimTypes.Role, user.Permission.Name.ToLowerInvariant()),
             new Claim(PermissionPolicies.ClaimType, user.IdPermission.ToString())
+        };
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
+    }
+
+    private static ClaimsPrincipal CreatePrincipal(CustomerProfile user)
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()), new Claim(ClaimTypes.Name, user.Name), new Claim(ClaimTypes.Email, user.Email),
+            new Claim(ClaimTypes.Role, user.Permission.ToLowerInvariant()), new Claim(PermissionPolicies.ClaimType, user.IdPermission.ToString())
         };
         return new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
     }

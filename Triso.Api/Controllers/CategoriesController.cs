@@ -11,10 +11,10 @@ using Triso.Infrastructure.Persistence;
 
 namespace Triso.Api.Controllers;
 
-[ApiController, Route("api/v1/admin/categories"), ManagerAccess]
+[ApiController, Route("api/v1/admin/categories")]
 public sealed class CategoriesController(TrisoDbContext db) : ControllerBase
 {
-    [HttpGet]
+    [HttpGet, ManagerAccess]
     public async Task<IActionResult> List(CancellationToken ct)
     {
         var categories = await db.Categories.AsNoTracking().OrderBy(x => x.Name)
@@ -23,7 +23,7 @@ public sealed class CategoriesController(TrisoDbContext db) : ControllerBase
         return Ok(new { data = categories });
     }
 
-    [HttpPost]
+    [HttpPost, AdminOnly]
     public async Task<IActionResult> Create(CategoryRequest request, CancellationToken ct)
     {
         var errors = CategoryValidator.Validate(request);
@@ -44,7 +44,7 @@ public sealed class CategoriesController(TrisoDbContext db) : ControllerBase
         });
     }
 
-    [HttpPatch("{id:guid}")]
+    [HttpPatch("{id:guid}"), AdminOnly]
     public async Task<IActionResult> Update(Guid id, CategoryUpdateRequest request, CancellationToken ct)
     {
         var errors = CategoryValidator.Validate(request);
@@ -64,7 +64,7 @@ public sealed class CategoriesController(TrisoDbContext db) : ControllerBase
         return NoContent();
     }
 
-    [HttpDelete("{id:guid}")]
+    [HttpDelete("{id:guid}"), AdminOnly]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var category = await db.Categories.SingleOrDefaultAsync(x => x.Id == id, ct);

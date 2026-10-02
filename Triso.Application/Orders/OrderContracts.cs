@@ -1,0 +1,12 @@
+using Triso.Domain.Enums;
+namespace Triso.Application.Orders;
+public sealed record OrderProductRequest(Guid ProductId, int Quantity);
+public sealed record OrderAddressRequest(string RecipientName, string Street, string Number, string? Complement, string Neighborhood, string City, string State, string PostalCode);
+public sealed record CreateOrderRequest(IReadOnlyList<OrderProductRequest> Items, OrderAddressRequest Address, Guid ShippingQuoteId = default);
+public sealed record CreateOrderResult(Guid Id, bool ReusedExistingOrder);
+public sealed record CheckoutResponse(Guid OrderId, string CheckoutUrl);
+public sealed record ShippingSummary(string Carrier, string Service, long PriceCents, int DeliveryDays, string? TrackingCode);
+public sealed record PaymentSummary(PaymentStatus Status, PaymentMethod Method, DateTimeOffset? PaidAt);
+public sealed record OrderSummary(Guid Id, string OrderNumber, OrderStatus Status, long SubtotalCents, long ShippingCents, long TotalCents, ShippingSummary? Shipping, PaymentSummary? Payment, DateTimeOffset CreatedAt);
+public sealed record OrderDetails(Guid Id, string OrderNumber, OrderStatus Status, long SubtotalCents, long ShippingCents, long TotalCents, ShippingSummary? Shipping, PaymentSummary? Payment, IReadOnlyList<OrderLine> Items, OrderAddressRequest Address);
+public sealed record OrderLine(Guid ProductId, string ProductName, long UnitPriceCents, int Quantity, long TotalCents);

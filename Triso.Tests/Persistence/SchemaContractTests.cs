@@ -16,7 +16,8 @@ public sealed class SchemaContractTests
         var requiredTables = new HashSet<string>
         {
             "users", "permission", "categories", "products", "product_images", "marketplaces",
-            "product_marketplace_links", "marketplace_clicks", "sessions", "audit_logs"
+            "product_marketplace_links", "marketplace_clicks", "sessions", "audit_logs", "orders",
+            "order_items", "order_addresses", "payments", "order_status_history", "notifications", "outbox_messages"
         };
 
         Assert.Subset(requiredTables, tables);

@@ -14,12 +14,20 @@ namespace Triso.Api.Controllers;
 public sealed class UsersController(TrisoDbContext db) : ControllerBase
 {
     [HttpGet, ManagerAccess]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(new
+    public async Task<IActionResult> List([FromQuery] string? accountType, [FromQuery] bool? active, CancellationToken ct)
     {
-        data = await db.Users.AsNoTracking().OrderBy(x => x.Name)
-            .Select(x => new { x.Id, x.Name, x.Email, x.IdPermission, permission = x.Permission.Name, x.Active, x.CreatedAt, x.UpdatedAt })
-            .ToListAsync(ct)
-    });
+        var type = string.IsNullOrWhiteSpace(accountType) ? "all" : accountType.Trim().ToLowerInvariant();
+        type = type switch { "normal" or "cliente" => "customer", "admin" or "internal" => "administrative", _ => type };
+        if (type is not ("all" or "customer" or "administrative"))
+            return BadRequest(new { error = "accountType deve ser all, customer ou administrative." });
+        var query = db.Users.AsNoTracking().AsQueryable();
+        if (type == "customer") query = query.Where(x => x.IdPermission == 4);
+        if (type == "administrative") query = query.Where(x => x.IdPermission != 4);
+        if (active is not null) query = query.Where(x => x.Active == active);
+        if (type == "administrative" && active == true)
+            return Ok(new { data = await query.OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.Email }).ToListAsync(ct) });
+        return Ok(new { data = await query.OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.Email, x.Active, x.IdPermission, permission = x.Permission.Name, x.CreatedAt, x.UpdatedAt }).ToListAsync(ct) });
+    }
 
     [HttpGet("{id:guid}"), ManagerAccess]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
