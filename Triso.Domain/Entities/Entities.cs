@@ -91,6 +91,15 @@ public sealed class Marketplace { public Guid Id { get; set; } = Guid.NewGuid();
 public sealed class ProductMarketplaceLink { public Guid Id { get; set; } = Guid.NewGuid(); public Guid ProductId { get; set; } public Product Product { get; set; } = null!; public Guid MarketplaceId { get; set; } public Marketplace Marketplace { get; set; } = null!; public required string Url { get; set; } public string? ExternalProductId { get; set; } public bool Active { get; set; } = true; public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow; public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow; }
 public sealed class MarketplaceClick { public Guid Id { get; set; } = Guid.NewGuid(); public Guid EventId { get; set; } = Guid.NewGuid(); public Guid ProductMarketplaceLinkId { get; set; } public ProductMarketplaceLink ProductMarketplaceLink { get; set; } = null!; public DateTimeOffset ClickedAt { get; set; } = DateTimeOffset.UtcNow; public string? AnonymousSessionHash { get; set; } public string? Source { get; set; } public string? UserAgentHash { get; set; } }
 
+public sealed class CampaignDownload
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required string Campaign { get; set; }
+    public required string AnonymousTokenHash { get; set; }
+    public string? Source { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 
 public sealed class Session
 {
