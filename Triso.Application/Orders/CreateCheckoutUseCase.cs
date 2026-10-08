@@ -14,8 +14,11 @@ public sealed class CreateCheckoutUseCase(IOrderRepository orders, IPaymentRepos
         if (!string.IsNullOrWhiteSpace(payment.CheckoutUrl)) return new CheckoutResponse(order.Id, payment.CheckoutUrl);
         var user = await users.GetByIdAsync(userId, ct);
         if (user is null || !user.Active) return null;
+        var checkoutItems = order.Items.Select(x => new CreateCheckoutItem(x.ProductName, x.UnitPriceCents, x.Quantity)).ToList();
+        if (order.ShippingCents > 0)
+            checkoutItems.Add(new CreateCheckoutItem($"Frete - {order.ShippingService}", order.ShippingCents, 1));
         var result = await gateway.CreateCheckoutAsync(new(payment.OrderNsu, order.TotalCents,
-            order.Items.Select(x => new CreateCheckoutItem(x.ProductName, x.UnitPriceCents, x.Quantity)).Append(new CreateCheckoutItem($"Frete - {order.ShippingService}", order.ShippingCents, 1)).ToList(),
+            checkoutItems,
             new CreateCheckoutCustomer(user.Name, user.Email), new CreateCheckoutAddress(order.Address.Street, order.Address.Number, order.Address.Complement, order.Address.Neighborhood, order.Address.City, order.Address.State, order.Address.PostalCode)), ct);
         payment.CheckoutUrl = result.CheckoutUrl;
         payment.UpdatedAt = DateTimeOffset.UtcNow;
