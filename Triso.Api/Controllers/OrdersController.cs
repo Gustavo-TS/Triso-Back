@@ -21,7 +21,7 @@ public sealed class OrdersController(CreateOrderUseCase createOrder, CreateCheck
     public async Task<IActionResult> Checkout(Guid id, CancellationToken ct)
     {
         try { return (await checkout.ExecuteAsync(id, UserId(), ct)) is { } value ? Ok(new { data = value }) : NotFound(); }
-        catch (HttpRequestException) { return Problem(statusCode: StatusCodes.Status502BadGateway, title: "N\u00e3o foi poss\u00edvel criar o checkout."); }
+        catch (HttpRequestException exception) { return Problem(statusCode: StatusCodes.Status502BadGateway, title: "Não foi possível criar o checkout.", detail: exception.Message); }
         catch (InvalidOperationException) { return Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Gateway de pagamento n\u00e3o configurado."); }
     }
     [HttpPatch("admin/orders/{id:guid}/status"), ManagerAccess]
