@@ -2,7 +2,7 @@ using Triso.Domain.Enums;
 namespace Triso.Application.Orders;
 public sealed record OrderProductRequest(Guid ProductId, int Quantity);
 public sealed record OrderAddressRequest(string RecipientName, string Street, string Number, string? Complement, string Neighborhood, string City, string State, string PostalCode);
-public sealed record CreateOrderRequest(IReadOnlyList<OrderProductRequest> Items, OrderAddressRequest Address, Guid ShippingQuoteId = default);
+public sealed record CreateOrderRequest(IReadOnlyList<OrderProductRequest> Items, OrderAddressRequest Address, string ShippingQuoteId = "");
 public sealed record CreateOrderResult(Guid Id, bool ReusedExistingOrder);
 public sealed record CheckoutResponse(Guid OrderId, string CheckoutUrl);
 public sealed record ShippingSummary(string Carrier, string Service, long PriceCents, int DeliveryDays, string? TrackingCode);

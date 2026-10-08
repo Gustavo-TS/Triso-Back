@@ -25,7 +25,7 @@ public sealed class AdminTasksController(TrisoDbContext db) : ControllerBase
     [HttpGet("eligible-orders")]
     public async Task<IActionResult> EligibleOrders(CancellationToken ct)
     {
-        var orders = await db.Orders.AsNoTracking().Include(x => x.Items).Include(x => x.Address).Include(x => x.Payment).Where(x => x.Status == OrderStatus.Paid || x.Status == OrderStatus.InProduction || x.Status == OrderStatus.ReadyToShip).OrderBy(x => x.Payment!.PaidAt).ThenBy(x => x.CreatedAt).ToListAsync(ct);
+        var orders = await db.Orders.AsNoTracking().Include(x => x.Items).Include(x => x.Address).Include(x => x.Payment).Where(x => (x.Status == OrderStatus.Paid || x.Status == OrderStatus.InProduction || x.Status == OrderStatus.ReadyToShip) && x.ShippingCarrier != "Retirada na loja").OrderBy(x => x.Payment!.PaidAt).ThenBy(x => x.CreatedAt).ToListAsync(ct);
         return Ok(new { data = orders.Select(OrderSummary) });
     }
 

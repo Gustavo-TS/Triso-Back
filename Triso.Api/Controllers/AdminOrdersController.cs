@@ -40,6 +40,7 @@ public sealed class AdminOrdersController(TrisoDbContext db) : ControllerBase
         var order = await db.Orders.Include(x => x.Address).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (order is null) return NotFound();
         if (order.Status is not (OrderStatus.ReadyToShip or OrderStatus.Shipped)) return Conflict(new { error = "Rastreio só pode ser alterado em pedidos prontos para envio ou enviados." });
+        if (string.Equals(order.ShippingCarrier, "Retirada na loja", StringComparison.OrdinalIgnoreCase)) return Conflict(new { error = "Pedidos de retirada na loja não exigem código de rastreio." });
         var code = new string((request.TrackingCode ?? string.Empty).Where(c => !char.IsWhiteSpace(c)).ToArray()).ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(code) || code.Length > 120) return BadRequest(new { error = "Código de rastreio inválido." });
         if (order.ShippingCarrier?.Contains("Correios", StringComparison.OrdinalIgnoreCase) == true && !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z]{2}[0-9]{9}BR$")) return BadRequest(new { error = "Código dos Correios inválido." });
